@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - UNSPLASH_API_KEY=${UNSPLASH_API_KEY}
+      - PEXELS_API_KEY=${PEXELS_API_KEY}
+      - PIXABAY_API_KEY=${PIXABAY_API_KEY}
+      - FREEPIK_API_KEY=${FREEPIK_API_KEY}
+      - POSTGRES_URL=${POSTGRES_URL:-postgresql+asyncpg://user:password@postgres:5432/unsplash}
+      - TYPESENSE_HOST=${TYPESENSE_HOST:-typesense}
+      - TYPESENSE_PORT=${TYPESENSE_PORT:-8108}
+      - TYPESENSE_API_KEY=${TYPESENSE_API_KEY:-xyz}
+      - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
+    depends_on:
+      - postgres
+      - typesense
+      - redis
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: unsplash
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  typesense:
+    image: typesense/typesense:0.25.1
+    environment:
+      - TYPESENSE_DATA_DIR=/data
+      - TYPESENSE_API_KEY=xyz
+    ports:
+      - "8108:8108"
+    volumes:
+      - typesense_data:/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+volumes:
+  postgres_data:
+  typesense_data:
