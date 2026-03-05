@@ -21,13 +21,14 @@ class SearchService:
         key_str = f"{query}:{page}:{per_page}:{orientation}:{color}"
         return f"search_cache:{hashlib.md5(key_str.encode()).hexdigest()}"
 
-    async def _search_typesense(self, query: str, page: int, per_page: int) -> List[ImageResult]:
+    async def _search_typesense(self, query: str, page: int, per_page: int) -> Tuple[List[ImageResult], List[Dict]]:
         try:
             results = await typesense_client.search(query, page, per_page)
-            return [normalize_typesense_result(res) for res in results]
+            normalized = [normalize_typesense_result(res) for res in results]
+            return normalized, results
         except Exception as e:
             # Handle Typesense error, return empty list
-            return []
+            return [], []
 
     def deduplicate_results(self, results: List[ImageResult]) -> List[ImageResult]:
         seen = set()
@@ -81,8 +82,7 @@ class SearchService:
             pass # Ignore cache read errors
 
         # 1. Default Search (Typesense)
-        typesense_results = await self._search_typesense(query, page, per_page)
-        typesense_raw = await typesense_client.search(query, page, per_page) # Needed for sorting
+        typesense_results, typesense_raw = await self._search_typesense(query, page, per_page)
 
         # 2. External Provider
         external_results = []
