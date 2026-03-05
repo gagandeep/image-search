@@ -70,5 +70,5 @@ class PixabayProvider(BaseProvider):
                 results.append(result)
             return results
         except Exception as e:
-            # Handle logging in production
-            return []
+            # Re-raise so the router can catch and try another provider
+            raise
