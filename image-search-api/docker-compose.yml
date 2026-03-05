@@ -16,21 +16,9 @@ services:
       - TYPESENSE_API_KEY=${TYPESENSE_API_KEY:-xyz}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379/0}
     depends_on:
-      - postgres
       - typesense
       - redis
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-  postgres:
-    image: postgres:15
-    environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: unsplash
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
 
   typesense:
     image: typesense/typesense:0.25.1
@@ -48,5 +36,4 @@ services:
       - "6379:6379"
 
 volumes:
-  postgres_data:
   typesense_data:
