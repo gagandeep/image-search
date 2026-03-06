@@ -70,7 +70,7 @@ chmod 600 .env
 # ── Start Docker stack ───────────────────────────────────────────────
 docker compose up --build -d
 
-# ── Configure host nginx → proxy :80 to FastAPI :8000 ────────────────
+# ── Configure host nginx → SSL on 443, redirect 80 → 443 ────────────
 cat > /etc/nginx/sites-available/image-search << 'NGINXCONF'
 # CORS: allow getaipage.com and all its subdomains.
 map $http_origin $cors_origin {
@@ -78,9 +78,23 @@ map $http_origin $cors_origin {
     "~^https?://(.*\.)?getaipage\.com(:[0-9]+)?$" $http_origin;
 }
 
+# Redirect HTTP to HTTPS
 server {
     listen      80;
     server_name images.innerkore.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen      443 ssl;
+    server_name images.innerkore.com;
+
+    # Cloudflare Origin Certificate (bundled in repo at certs/)
+    ssl_certificate     /opt/image-search/certs/innerkore_cloudflare.pem;
+    ssl_certificate_key /opt/image-search/certs/innerkore_cloudflare.key;
+
+    ssl_protocols             TLSv1.2 TLSv1.3;
+    ssl_prefer_server_ciphers on;
 
     real_ip_header    X-Forwarded-For;
     set_real_ip_from  0.0.0.0/0;
