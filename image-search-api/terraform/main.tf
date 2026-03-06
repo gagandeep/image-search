@@ -81,36 +81,89 @@ data "aws_ami" "ubuntu" {
 }
 
 resource "aws_instance" "app_server" {
-  ami           = data.aws_ami.ubuntu.id
-  instance_type = var.instance_type
-  key_name      = aws_key_pair.deployer.key_name
+  ami                  = data.aws_ami.ubuntu.id
+  instance_type        = var.instance_type
+  key_name             = aws_key_pair.deployer.key_name
+  iam_instance_profile = aws_iam_instance_profile.app_profile.name
 
   vpc_security_group_ids = [aws_security_group.api_sg.id]
 
   user_data = <<-EOF
               #!/bin/bash
-              sudo apt-get update
-              sudo apt-get install -y ca-certificates curl gnupg lsb-release git
+              set -euo pipefail
+              exec > /var/log/user-data.log 2>&1
 
-              # Install Docker
-              sudo mkdir -p /etc/apt/keyrings
-              curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+              # ── System packages ──────────────────────────────────────
+              apt-get update -y
+              apt-get install -y ca-certificates curl gnupg lsb-release git awscli
+
+              # ── Docker ───────────────────────────────────────────────
+              mkdir -p /etc/apt/keyrings
+              curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
+                | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
               echo \
-                "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-                $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+                "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] \
+                https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" \
+                | tee /etc/apt/sources.list.d/docker.list > /dev/null
+              apt-get update -y
+              apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+              usermod -aG docker ubuntu
+              systemctl enable --now docker
 
-              sudo apt-get update
-              sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+              # ── Clone repo ───────────────────────────────────────────
+              APP_DIR=/opt/image-search
+              git clone https://github.com/gagandeep/image-search "$APP_DIR" || \
+                git -C "$APP_DIR" pull
+              cd "$APP_DIR/image-search-api"
 
-              # Add ubuntu user to docker group
-              sudo usermod -aG docker ubuntu
+              # ── Pull env vars from SSM and write .env ────────────────
+              # The EC2 IAM role grants read access; no AWS keys needed.
+              AWS_REGION="${var.aws_region}"
+              SSM_PREFIX="/image-search"
 
-              # Install Docker Compose (standalone)
-              sudo curl -L "https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
-              sudo chmod +x /usr/local/bin/docker-compose
+              write_param() {
+                local key="$1"
+                local value
+                value=$(aws ssm get-parameter \
+                  --region "$AWS_REGION" \
+                  --name "$SSM_PREFIX/$key" \
+                  --with-decryption \
+                  --query Parameter.Value \
+                  --output text)
+                echo "$key=$value"
+              }
+
+              {
+                write_param UNSPLASH_API_KEY
+                write_param PEXELS_API_KEY
+                write_param PIXABAY_API_KEY
+                write_param FREEPIK_API_KEY
+                write_param POSTGRES_URL
+                write_param TYPESENSE_HOST
+                write_param TYPESENSE_PORT
+                write_param TYPESENSE_API_KEY
+                write_param REDIS_URL
+                echo "USE_SSM=false"   # app reads .env; SSM already resolved here
+              } > .env
+              chmod 600 .env
+
+              # ── Start the stack ──────────────────────────────────────
+              docker compose up --build -d
               EOF
 
   tags = {
     Name = "ImageSearchAPI"
   }
+
+  depends_on = [
+    aws_ssm_parameter.unsplash_api_key,
+    aws_ssm_parameter.pexels_api_key,
+    aws_ssm_parameter.pixabay_api_key,
+    aws_ssm_parameter.freepik_api_key,
+    aws_ssm_parameter.postgres_url,
+    aws_ssm_parameter.typesense_host,
+    aws_ssm_parameter.typesense_port,
+    aws_ssm_parameter.typesense_api_key,
+    aws_ssm_parameter.redis_url,
+  ]
 }
