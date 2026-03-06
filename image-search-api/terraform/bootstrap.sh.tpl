@@ -66,6 +66,7 @@ write_param() {
   echo "USE_SSM=false"
 } > .env
 chmod 600 .env
+chown ubuntu:ubuntu .env
 
 # ── Start Docker stack ───────────────────────────────────────────────
 docker compose up --build -d
