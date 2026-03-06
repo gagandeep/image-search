@@ -103,10 +103,16 @@ resource "aws_instance" "app_server" {
 
               # ── System packages ──────────────────────────────────────
               apt-get update -y
-              apt-get install -y ca-certificates curl gnupg lsb-release git awscli nginx
+              apt-get install -y ca-certificates curl gnupg lsb-release git unzip nginx
 
               # Disable the default nginx site now; we'll add ours after the app starts
               rm -f /etc/nginx/sites-enabled/default
+
+              # ── AWS CLI v2 (no apt package on Ubuntu 22.04 ARM64) ────
+              curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-aarch64.zip" -o /tmp/awscliv2.zip
+              unzip -q /tmp/awscliv2.zip -d /tmp
+              /tmp/aws/install
+              rm -rf /tmp/awscliv2.zip /tmp/aws
 
               # ── Docker ───────────────────────────────────────────────
               mkdir -p /etc/apt/keyrings
@@ -219,18 +225,4 @@ NGINXCONF
   tags = {
     Name = "ImageSearchAPI"
   }
-
-  depends_on = [
-    aws_ssm_parameter.unsplash_app_id,
-    aws_ssm_parameter.unsplash_access_key,
-    aws_ssm_parameter.unsplash_secret_key,
-    aws_ssm_parameter.pexels_api_key,
-    aws_ssm_parameter.pixabay_api_key,
-    aws_ssm_parameter.freepik_api_key,
-    aws_ssm_parameter.postgres_url,
-    aws_ssm_parameter.typesense_host,
-    aws_ssm_parameter.typesense_port,
-    aws_ssm_parameter.typesense_api_key,
-    aws_ssm_parameter.redis_url,
-  ]
 }

@@ -211,3 +211,4 @@ __marimo__/
 .terraform.lock.hcl
 terraform.tfstate
 terraform.tfstate.backup
+image-search-api/terraform/terraform.tfstate.*
