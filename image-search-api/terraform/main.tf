@@ -18,29 +18,32 @@ data "aws_vpc" "default" {
 
 resource "aws_security_group" "api_sg" {
   name        = "image-search-api-sg"
-  description = "Allow inbound traffic for Image Search API"
+  description = "Allow inbound traffic for Image Search API (nginx + SSH)"
   vpc_id      = data.aws_vpc.default.id
 
-  # Allow SSH
+  # SSH
   ingress {
+    description = "SSH"
     from_port   = 22
     to_port     = 22
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Allow HTTP (FastAPI)
+  # HTTP — served by nginx; nginx proxies to FastAPI on 8000 internally
   ingress {
-    from_port   = 8000
-    to_port     = 8000
+    description = "HTTP (nginx)"
+    from_port   = 80
+    to_port     = 80
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  # Allow Typesense (optional but helpful for management)
+  # HTTPS — reserved for Let's Encrypt / future TLS termination
   ingress {
-    from_port   = 8108
-    to_port     = 8108
+    description = "HTTPS"
+    from_port   = 443
+    to_port     = 443
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
@@ -69,12 +72,17 @@ data "aws_ami" "ubuntu" {
 
   filter {
     name   = "name"
-    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-amd64-server-*"]
+    values = ["ubuntu/images/hvm-ssd/ubuntu-jammy-22.04-arm64-server-*"]
   }
 
   filter {
     name   = "virtualization-type"
     values = ["hvm"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["arm64"]
   }
 
   owners = ["099720109477"] # Canonical
@@ -95,7 +103,10 @@ resource "aws_instance" "app_server" {
 
               # ── System packages ──────────────────────────────────────
               apt-get update -y
-              apt-get install -y ca-certificates curl gnupg lsb-release git awscli
+              apt-get install -y ca-certificates curl gnupg lsb-release git awscli nginx
+
+              # Disable the default nginx site now; we'll add ours after the app starts
+              rm -f /etc/nginx/sites-enabled/default
 
               # ── Docker ───────────────────────────────────────────────
               mkdir -p /etc/apt/keyrings
@@ -134,7 +145,9 @@ resource "aws_instance" "app_server" {
               }
 
               {
-                write_param UNSPLASH_API_KEY
+                write_param UNSPLASH_APP_ID
+                write_param UNSPLASH_ACCESS_KEY
+                write_param UNSPLASH_SECRET_KEY
                 write_param PEXELS_API_KEY
                 write_param PIXABAY_API_KEY
                 write_param FREEPIK_API_KEY
@@ -149,6 +162,58 @@ resource "aws_instance" "app_server" {
 
               # ── Start the stack ──────────────────────────────────────
               docker compose up --build -d
+
+              # ── Configure nginx (host) to proxy port 80 → 8000 ───────
+              cat > /etc/nginx/sites-available/image-search << 'NGINXCONF'
+# CORS: allow getaipage.com and all its subdomains.
+map $http_origin $cors_origin {
+    default                                        "";
+    "~^https?://(.*\.)?getaipage\.com(:[0-9]+)?$" $http_origin;
+}
+
+server {
+    listen      80;
+    server_name images.innerkore.com;
+
+    real_ip_header    X-Forwarded-For;
+    set_real_ip_from  0.0.0.0/0;
+
+    location / {
+        # ── CORS preflight ────────────────────────────────────────
+        if ($request_method = OPTIONS) {
+            add_header 'Access-Control-Allow-Origin'      $cors_origin;
+            add_header 'Access-Control-Allow-Credentials' 'true';
+            add_header 'Access-Control-Allow-Methods'     'GET, POST, PUT, PATCH, DELETE, OPTIONS';
+            add_header 'Access-Control-Allow-Headers'     'Authorization, Content-Type, Accept, Origin, X-Requested-With';
+            add_header 'Access-Control-Max-Age'           '86400';
+            add_header 'Content-Type'                     'text/plain; charset=utf-8';
+            add_header 'Content-Length'                   '0';
+            return 204;
+        }
+
+        # ── CORS on every real response ───────────────────────────
+        add_header 'Access-Control-Allow-Origin'      $cors_origin                                          always;
+        add_header 'Access-Control-Allow-Credentials' 'true'                                                always;
+        add_header 'Access-Control-Allow-Methods'     'GET, POST, PUT, PATCH, DELETE, OPTIONS'              always;
+        add_header 'Access-Control-Allow-Headers'     'Authorization, Content-Type, Accept, Origin, X-Requested-With' always;
+
+        # ── Proxy to FastAPI running in Docker ────────────────────
+        proxy_pass         http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header   Host              $host;
+        proxy_set_header   X-Real-IP         $remote_addr;
+        proxy_set_header   X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header   X-Forwarded-Proto $scheme;
+        proxy_buffering    off;
+        proxy_read_timeout 120s;
+    }
+}
+NGINXCONF
+
+              ln -sf /etc/nginx/sites-available/image-search /etc/nginx/sites-enabled/image-search
+              nginx -t
+              systemctl enable --now nginx
+              systemctl reload nginx
               EOF
 
   tags = {
@@ -156,7 +221,9 @@ resource "aws_instance" "app_server" {
   }
 
   depends_on = [
-    aws_ssm_parameter.unsplash_api_key,
+    aws_ssm_parameter.unsplash_app_id,
+    aws_ssm_parameter.unsplash_access_key,
+    aws_ssm_parameter.unsplash_secret_key,
     aws_ssm_parameter.pexels_api_key,
     aws_ssm_parameter.pixabay_api_key,
     aws_ssm_parameter.freepik_api_key,

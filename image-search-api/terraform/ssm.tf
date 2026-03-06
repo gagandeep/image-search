@@ -11,11 +11,30 @@ locals {
 
 # --- API Keys (SecureString) ---
 
-resource "aws_ssm_parameter" "unsplash_api_key" {
-  name        = "${local.ssm_prefix}/UNSPLASH_API_KEY"
-  description = "Unsplash API key"
+# Unsplash has three separate credentials (https://unsplash.com/documentation)
+resource "aws_ssm_parameter" "unsplash_app_id" {
+  name        = "${local.ssm_prefix}/UNSPLASH_APP_ID"
+  description = "Unsplash Application ID"
   type        = "SecureString"
-  value       = var.unsplash_api_key
+  value       = var.unsplash_app_id
+
+  tags = { App = "image-search" }
+}
+
+resource "aws_ssm_parameter" "unsplash_access_key" {
+  name        = "${local.ssm_prefix}/UNSPLASH_ACCESS_KEY"
+  description = "Unsplash Access Key (used as Client-ID for public endpoints)"
+  type        = "SecureString"
+  value       = var.unsplash_access_key
+
+  tags = { App = "image-search" }
+}
+
+resource "aws_ssm_parameter" "unsplash_secret_key" {
+  name        = "${local.ssm_prefix}/UNSPLASH_SECRET_KEY"
+  description = "Unsplash Secret Key (used for OAuth user-auth flows)"
+  type        = "SecureString"
+  value       = var.unsplash_secret_key
 
   tags = { App = "image-search" }
 }

@@ -4,8 +4,13 @@ output "instance_ip" {
 }
 
 output "api_endpoint" {
-  description = "The endpoint to access the FastAPI swagger UI"
-  value       = "http://${aws_instance.app_server.public_ip}:8000/docs"
+  description = "The endpoint to access the FastAPI swagger UI (via nginx)"
+  value       = "http://${aws_instance.app_server.public_ip}/docs"
+}
+
+output "dns_record_value" {
+  description = "Point images.innerkore.com A record to this IP"
+  value       = aws_instance.app_server.public_ip
 }
 
 output "ssm_prefix" {

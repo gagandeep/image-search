@@ -2,8 +2,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    # Provider API Keys
-    UNSPLASH_API_KEY: str = ""
+    # Unsplash credentials (https://unsplash.com/documentation)
+    UNSPLASH_APP_ID: str = ""
+    UNSPLASH_ACCESS_KEY: str = ""   # used as Client-ID in Authorization header
+    UNSPLASH_SECRET_KEY: str = ""   # used for OAuth user-auth flows
+
+    # Other provider API Keys
     PEXELS_API_KEY: str = ""
     PIXABAY_API_KEY: str = ""
     FREEPIK_API_KEY: str = ""

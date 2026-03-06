@@ -21,8 +21,21 @@ variable "public_key" {
 # prints them in plan/apply output.
 # ---------------------------------------------------------------
 
-variable "unsplash_api_key" {
-  description = "Unsplash API key"
+# Unsplash has three separate credentials (https://unsplash.com/documentation)
+variable "unsplash_app_id" {
+  description = "Unsplash Application ID"
+  type        = string
+  sensitive   = true
+}
+
+variable "unsplash_access_key" {
+  description = "Unsplash Access Key (used as Client-ID for public endpoints)"
+  type        = string
+  sensitive   = true
+}
+
+variable "unsplash_secret_key" {
+  description = "Unsplash Secret Key (used for OAuth user-auth flows)"
   type        = string
   sensitive   = true
 }
