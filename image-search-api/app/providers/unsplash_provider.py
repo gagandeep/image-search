@@ -13,6 +13,10 @@ class UnsplashProvider(BaseProvider):
     def limit_per_hour(self) -> int:
         return 50 # 50 requests per hour for demo applications
 
+    @property
+    def is_enabled(self) -> bool:
+        return bool(settings.UNSPLASH_ACCESS_KEY)
+
     async def search(
         self,
         query: str,

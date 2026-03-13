@@ -18,6 +18,11 @@ class BaseProvider(ABC):
     def limit_per_hour(self) -> int:
         pass
 
+    @property
+    def is_enabled(self) -> bool:
+        """Return False if the provider's required API key is missing."""
+        return True
+
     @abstractmethod
     async def search(
         self,

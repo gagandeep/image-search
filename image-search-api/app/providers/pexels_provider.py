@@ -12,6 +12,10 @@ class PexelsProvider(BaseProvider):
     def limit_per_hour(self) -> int:
         return 200 # Standard Pexels tier
 
+    @property
+    def is_enabled(self) -> bool:
+        return bool(settings.PEXELS_API_KEY)
+
     async def search(
         self,
         query: str,

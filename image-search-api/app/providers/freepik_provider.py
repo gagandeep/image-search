@@ -12,6 +12,10 @@ class FreepikProvider(BaseProvider):
     def limit_per_hour(self) -> int:
         return 50 # Example limit
 
+    @property
+    def is_enabled(self) -> bool:
+        return bool(settings.FREEPIK_API_KEY)
+
     async def search(
         self,
         query: str,

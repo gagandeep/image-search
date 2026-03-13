@@ -12,6 +12,10 @@ class PixabayProvider(BaseProvider):
     def limit_per_hour(self) -> int:
         return 5000 # Pixabay offers 5000 requests per hour
 
+    @property
+    def is_enabled(self) -> bool:
+        return bool(settings.PIXABAY_API_KEY)
+
     async def search(
         self,
         query: str,

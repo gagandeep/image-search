@@ -1,5 +1,6 @@
 from typing import List, Optional
 import random
+import logging
 from app.providers.base_provider import BaseProvider
 from app.providers.unsplash_provider import UnsplashProvider
 from app.providers.pexels_provider import PexelsProvider
@@ -7,14 +8,22 @@ from app.providers.pixabay_provider import PixabayProvider
 from app.providers.freepik_provider import FreepikProvider
 from app.services.rate_limit_manager import rate_limit_manager
 
+logger = logging.getLogger(__name__)
+
 class ProviderRouter:
     def __init__(self):
-        self.providers: List[BaseProvider] = [
+        all_providers: List[BaseProvider] = [
             UnsplashProvider(),
             PexelsProvider(),
             PixabayProvider(),
-            FreepikProvider()
+            FreepikProvider(),
         ]
+        self.providers: List[BaseProvider] = []
+        for p in all_providers:
+            if p.is_enabled:
+                self.providers.append(p)
+            else:
+                logger.warning("Provider '%s' is disabled — API key not configured.", p.provider_name)
 
     async def get_available_providers(self) -> List[BaseProvider]:
         available = []
