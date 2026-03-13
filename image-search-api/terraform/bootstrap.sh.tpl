@@ -51,13 +51,26 @@ write_param() {
   echo "$key=$value"
 }
 
+# Like write_param but silently skips if the SSM parameter does not exist.
+optional_write_param() {
+  local key="$1"
+  local value
+  value=$(/usr/local/bin/aws ssm get-parameter \
+    --region "$AWS_REGION" \
+    --name "$SSM_PREFIX/$key" \
+    --with-decryption \
+    --query Parameter.Value \
+    --output text 2>/dev/null) || return 0
+  [[ -n "$value" ]] && echo "$key=$value"
+}
+
 {
   write_param UNSPLASH_APP_ID
   write_param UNSPLASH_ACCESS_KEY
   write_param UNSPLASH_SECRET_KEY
   write_param PEXELS_API_KEY
-  write_param PIXABAY_API_KEY
-  write_param FREEPIK_API_KEY
+  optional_write_param PIXABAY_API_KEY
+  optional_write_param FREEPIK_API_KEY
   write_param POSTGRES_URL
   write_param TYPESENSE_HOST
   write_param TYPESENSE_PORT
